@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { ViewType, Client, Project, TeamMember, Transaction, Package, AddOn, TeamProjectPayment, Profile, FinancialPocket, TeamPaymentRecord, Lead, RewardLedgerEntry, User, Card, Asset, ClientFeedback, Contract, RevisionStatus, NavigationAction, Notification, SocialMediaPost, PromoCode, SOP, CardType, PocketType, VendorData } from './types';
 import { MOCK_USERS, DEFAULT_USER_PROFILE, MOCK_DATA, HomeIcon, FolderKanbanIcon, UsersIcon, DollarSignIcon, PlusIcon, lightenColor, darkenColor, hexToHsl } from './constants';
+import { useSupabaseData } from './hooks/useSupabaseData';
+import { supabase } from './lib/supabase';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import { Leads } from './components/Leads';
@@ -103,30 +105,68 @@ const App: React.FC = () => {
   const [route, setRoute] = useState(window.location.hash || '#/home');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-  // --- State Initialization with Persistence ---
-  const [users, setUsers] = useState<User[]>(() => JSON.parse(JSON.stringify(MOCK_USERS)));
-  
-  const [clients, setClients] = usePersistentState<Client[]>('vena-clients', JSON.parse(JSON.stringify(MOCK_DATA.clients)));
-  const [projects, setProjects] = usePersistentState<Project[]>('vena-projects', JSON.parse(JSON.stringify(MOCK_DATA.projects)));
-  const [teamMembers, setTeamMembers] = usePersistentState<TeamMember[]>('vena-teamMembers', JSON.parse(JSON.stringify(MOCK_DATA.teamMembers)));
-  const [transactions, setTransactions] = usePersistentState<Transaction[]>('vena-transactions', JSON.parse(JSON.stringify(MOCK_DATA.transactions)));
-  const [teamProjectPayments, setTeamProjectPayments] = usePersistentState<TeamProjectPayment[]>('vena-teamProjectPayments', JSON.parse(JSON.stringify(MOCK_DATA.teamProjectPayments)));
-  const [teamPaymentRecords, setTeamPaymentRecords] = usePersistentState<TeamPaymentRecord[]>('vena-teamPaymentRecords', JSON.parse(JSON.stringify(MOCK_DATA.teamPaymentRecords)));
-  const [pockets, setPockets] = usePersistentState<FinancialPocket[]>('vena-pockets', JSON.parse(JSON.stringify(MOCK_DATA.pockets)));
-  const [profile, setProfile] = usePersistentState<Profile>('vena-profile', JSON.parse(JSON.stringify(MOCK_DATA.profile)));
-  const [leads, setLeads] = usePersistentState<Lead[]>('vena-leads', JSON.parse(JSON.stringify(MOCK_DATA.leads)));
-  const [rewardLedgerEntries, setRewardLedgerEntries] = usePersistentState<RewardLedgerEntry[]>('vena-rewardLedgerEntries', JSON.parse(JSON.stringify(MOCK_DATA.rewardLedgerEntries)));
-  const [cards, setCards] = usePersistentState<Card[]>('vena-cards', JSON.parse(JSON.stringify(MOCK_DATA.cards)));
-  const [assets, setAssets] = usePersistentState<Asset[]>('vena-assets', JSON.parse(JSON.stringify(MOCK_DATA.assets)));
-  const [contracts, setContracts] = usePersistentState<Contract[]>('vena-contracts', JSON.parse(JSON.stringify(MOCK_DATA.contracts)));
-  const [clientFeedback, setClientFeedback] = usePersistentState<ClientFeedback[]>('vena-clientFeedback', JSON.parse(JSON.stringify(MOCK_DATA.clientFeedback)));
-  const [notifications, setNotifications] = usePersistentState<Notification[]>('vena-notifications', JSON.parse(JSON.stringify(MOCK_DATA.notifications)));
-  const [socialMediaPosts, setSocialMediaPosts] = usePersistentState<SocialMediaPost[]>('vena-socialMediaPosts', JSON.parse(JSON.stringify(MOCK_DATA.socialMediaPosts)));
-  const [promoCodes, setPromoCodes] = usePersistentState<PromoCode[]>('vena-promoCodes', JSON.parse(JSON.stringify(MOCK_DATA.promoCodes)));
-  const [sops, setSops] = usePersistentState<SOP[]>('vena-sops', JSON.parse(JSON.stringify(MOCK_DATA.sops)));
-  const [packages, setPackages] = usePersistentState<Package[]>('vena-packages', JSON.parse(JSON.stringify(MOCK_DATA.packages)));
-  const [addOns, setAddOns] = usePersistentState<AddOn[]>('vena-addOns', JSON.parse(JSON.stringify(MOCK_DATA.addOns)));
+  // --- Supabase Data Integration ---
+  const {
+    users, profile, clients, packages, addOns, projects, transactions, leads,
+    teamMembers, cards, pockets, teamProjectPayments, teamPaymentRecords,
+    rewardLedgerEntries, assets, contracts, clientFeedback, notifications,
+    socialMediaPosts, promoCodes, sops, loading, error,
+    // CRUD operations
+    createClient, updateClient, deleteClient,
+    createProject, updateProject, deleteProject,
+    createTransaction, updateTransaction, deleteTransaction,
+    createLead, updateLead, deleteLead,
+    createTeamMember, updateTeamMember, deleteTeamMember,
+    updateProfile,
+    createPackage, updatePackage, deletePackage,
+    createAddOn, updateAddOn, deleteAddOn,
+    createCard, updateCard, deleteCard,
+    createFinancialPocket, updateFinancialPocket, deleteFinancialPocket,
+    createAsset, updateAsset, deleteAsset,
+    createContract, updateContract, deleteContract,
+    createClientFeedback, createNotification, updateNotification,
+    createSocialMediaPost, updateSocialMediaPost, deleteSocialMediaPost,
+    createPromoCode, updatePromoCode, deletePromoCode,
+    createSOP, updateSOP, deleteSOP,
+    // Direct setters for complex operations
+    setUsers, setClients, setProjects, setTransactions, setLeads, setTeamMembers,
+    setCards, setPockets, setTeamProjectPayments, setTeamPaymentRecords,
+    setRewardLedgerEntries, setAssets, setContracts, setClientFeedback,
+    setNotifications, setSocialMediaPosts, setPromoCodes, setSops, setPackages, setAddOns
+  } = useSupabaseData();
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-brand-bg">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-accent mx-auto mb-4"></div>
+          <p className="text-brand-text-secondary">Memuat data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-brand-bg">
+        <div className="text-center p-8 bg-brand-surface rounded-2xl shadow-lg border border-brand-border max-w-md">
+          <h2 className="text-xl font-bold text-brand-danger mb-4">Error Loading Data</h2>
+          <p className="text-brand-text-secondary mb-4">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="button-primary"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback to default profile if not loaded yet
+  const currentProfile = profile || DEFAULT_USER_PROFILE;
 
     // --- [NEW] MOCK EMAIL SERVICE ---
     const sendEmailNotification = (recipientEmail: string, notification: Notification) => {
@@ -142,7 +182,7 @@ const App: React.FC = () => {
     };
 
     // --- [NEW] CENTRALIZED NOTIFICATION HANDLER ---
-    const addNotification = (newNotificationData: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => {
+    const addNotification = async (newNotificationData: Omit<Notification, 'id' | 'timestamp' | 'isRead'>) => {
         const newNotification: Notification = {
             id: crypto.randomUUID(),
             timestamp: new Date().toISOString(),
@@ -150,10 +190,16 @@ const App: React.FC = () => {
             ...newNotificationData
         };
 
-        setNotifications(prev => [newNotification, ...prev]);
+        try {
+          await createNotification(newNotification);
+        } catch (err) {
+          console.error('Error creating notification:', err);
+          // Fallback to local state update
+          setNotifications(prev => [newNotification, ...prev]);
+        }
 
-        if (profile.email) {
-            sendEmailNotification(profile.email, newNotification);
+        if (currentProfile.email) {
+            sendEmailNotification(currentProfile.email, newNotification);
         } else {
             console.warn('[SIMULASI EMAIL] Gagal: Alamat email vendor tidak diatur di Pengaturan Profil.');
         }
@@ -227,7 +273,18 @@ const App: React.FC = () => {
   };
 
   const handleSetProfile = (value: React.SetStateAction<Profile>) => {
-    setProfile(value);
+    if (typeof value === 'function') {
+      const newProfile = value(currentProfile);
+      updateProfile(newProfile).catch(err => {
+        console.error('Error updating profile:', err);
+        // Handle error appropriately
+      });
+    } else {
+      updateProfile(value).catch(err => {
+        console.error('Error updating profile:', err);
+        // Handle error appropriately
+      });
+    }
   };
 
   const handleLoginSuccess = (user: User) => {
@@ -243,11 +300,23 @@ const App: React.FC = () => {
   };
 
   const handleMarkAsRead = (notificationId: string) => {
-    setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n));
+    updateNotification(notificationId, { isRead: true }).catch(err => {
+      console.error('Error marking notification as read:', err);
+      // Fallback to local state update
+      setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n));
+    });
   };
   
   const handleMarkAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    // Update all unread notifications
+    const unreadNotifications = notifications.filter(n => !n.isRead);
+    Promise.all(
+      unreadNotifications.map(n => updateNotification(n.id, { isRead: true }))
+    ).catch(err => {
+      console.error('Error marking all notifications as read:', err);
+      // Fallback to local state update
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    });
   };
 
   const handleNavigation = (view: ViewType, action?: NavigationAction, notificationId?: string) => {
@@ -313,7 +382,7 @@ const App: React.FC = () => {
           clientFeedback={clientFeedback}
           contracts={contracts}
           currentUser={currentUser}
-          projectStatusConfig={profile.projectStatusConfig}
+          projectStatusConfig={currentProfile.projectStatusConfig}
         />;
       case ViewType.PROSPEK:
         return <Leads
@@ -322,7 +391,7 @@ const App: React.FC = () => {
             projects={projects} setProjects={setProjects}
             packages={packages} addOns={addOns}
             transactions={transactions} setTransactions={setTransactions}
-            userProfile={profile} setProfile={handleSetProfile} showNotification={showNotification}
+            userProfile={currentProfile} setProfile={handleSetProfile} showNotification={showNotification}
             cards={cards} setCards={setCards}
             pockets={pockets} setPockets={setPockets}
             promoCodes={promoCodes} setPromoCodes={setPromoCodes}
@@ -345,8 +414,8 @@ const App: React.FC = () => {
           projects={projects} setProjects={setProjects}
           packages={packages} addOns={addOns}
           transactions={transactions} setTransactions={setTransactions}
-          userProfile={profile}
-          showNotification={showNotification}
+          userProfile={currentProfile}
+          setProfile={handleSetProfile}
           initialAction={initialAction} setInitialAction={setInitialAction}
           cards={cards} setCards={setCards}
           pockets={pockets} setPockets={setPockets}
@@ -367,7 +436,7 @@ const App: React.FC = () => {
           teamProjectPayments={teamProjectPayments} setTeamProjectPayments={setTeamProjectPayments}
           transactions={transactions} setTransactions={setTransactions}
           initialAction={initialAction} setInitialAction={setInitialAction}
-          profile={profile}
+          profile={currentProfile}
           showNotification={showNotification}
           cards={cards}
           setCards={setCards}
@@ -383,7 +452,7 @@ const App: React.FC = () => {
             setTeamPaymentRecords={setTeamPaymentRecords}
             transactions={transactions}
             setTransactions={setTransactions}
-            userProfile={profile}
+            userProfile={currentProfile}
             showNotification={showNotification}
             initialAction={initialAction}
             setInitialAction={setInitialAction}
@@ -403,29 +472,29 @@ const App: React.FC = () => {
           transactions={transactions} setTransactions={setTransactions}
           pockets={pockets} setPockets={setPockets}
           projects={projects}
-          profile={profile}
+          profile={currentProfile}
           cards={cards} setCards={setCards}
           teamMembers={teamMembers}
           rewardLedgerEntries={rewardLedgerEntries}
         />;
       case ViewType.PACKAGES:
-        return <Packages packages={packages} setPackages={setPackages} addOns={addOns} setAddOns={setAddOns} projects={projects} profile={profile} />;
+        return <Packages packages={packages} setPackages={setPackages} addOns={addOns} setAddOns={setAddOns} projects={projects} profile={currentProfile} />;
       case ViewType.ASSETS:
-        return <Assets assets={assets} setAssets={setAssets} profile={profile} showNotification={showNotification} />;
+        return <Assets assets={assets} setAssets={setAssets} profile={currentProfile} showNotification={showNotification} />;
       case ViewType.CONTRACTS:
         return <Contracts 
             contracts={contracts} setContracts={setContracts}
-            clients={clients} projects={projects} profile={profile}
+            clients={clients} projects={projects} profile={currentProfile}
             showNotification={showNotification}
             initialAction={initialAction} setInitialAction={setInitialAction}
             packages={packages}
             onSignContract={(cId, sig, signer) => setContracts(prev => prev.map(c => c.id === cId ? { ...c, [signer === 'vendor' ? 'vendorSignature' : 'clientSignature']: sig } : c))}
         />;
       case ViewType.SOP:
-        return <SOPManagement sops={sops} setSops={setSops} profile={profile} showNotification={showNotification} />;
+        return <SOPManagement sops={sops} setSops={setSops} profile={currentProfile} showNotification={showNotification} />;
       case ViewType.SETTINGS:
         return <Settings 
-          profile={profile} setProfile={handleSetProfile} 
+          profile={currentProfile} setProfile={handleSetProfile} 
           transactions={transactions} projects={projects}
           packages={packages}
           users={users.filter(u => u.vendorId === currentUser?.vendorId)} // Only pass users for the current vendor
@@ -433,7 +502,7 @@ const App: React.FC = () => {
           currentUser={currentUser}
         />;
       case ViewType.CALENDAR:
-        return <CalendarView projects={projects} setProjects={setProjects} teamMembers={teamMembers} profile={profile} />;
+        return <CalendarView projects={projects} setProjects={setProjects} teamMembers={teamMembers} profile={currentProfile} />;
       case ViewType.CLIENT_REPORTS:
         return <ClientReports 
             clients={clients}
@@ -460,7 +529,7 @@ const App: React.FC = () => {
     return <PublicPackages
         packages={packages}
         addOns={addOns}
-        userProfile={profile}
+        userProfile={currentProfile}
         showNotification={showNotification}
         setClients={setClients}
         setProjects={setProjects}
@@ -474,11 +543,11 @@ const App: React.FC = () => {
     />;
   }
   if (route.startsWith('#/public-booking')) {
-    const allDataForForm = { clients, projects, teamMembers, transactions, teamProjectPayments, teamPaymentRecords, pockets, profile, leads, rewardLedgerEntries, cards, assets, contracts, clientFeedback, notifications, socialMediaPosts, promoCodes, sops, packages, addOns };
-    return <PublicBookingForm {...allDataForForm} userProfile={profile} showNotification={showNotification} setClients={setClients} setProjects={setProjects} setTransactions={setTransactions} setCards={setCards} setPockets={setPockets} setPromoCodes={setPromoCodes} setLeads={setLeads} addNotification={addNotification} />;
+    const allDataForForm = { clients, projects, teamMembers, transactions, teamProjectPayments, teamPaymentRecords, pockets, profile: currentProfile, leads, rewardLedgerEntries, cards, assets, contracts, clientFeedback, notifications, socialMediaPosts, promoCodes, sops, packages, addOns };
+    return <PublicBookingForm {...allDataForForm} userProfile={currentProfile} showNotification={showNotification} setClients={setClients} setProjects={setProjects} setTransactions={setTransactions} setCards={setCards} setPockets={setPockets} setPromoCodes={setPromoCodes} setLeads={setLeads} addNotification={addNotification} />;
   }
   if (route.startsWith('#/public-lead-form')) {
-    return <PublicLeadForm setLeads={setLeads} userProfile={profile} showNotification={showNotification} />;
+    return <PublicLeadForm setLeads={setLeads} userProfile={currentProfile} showNotification={showNotification} />;
   }
   
   if (route.startsWith('#/feedback')) return <PublicFeedbackForm setClientFeedback={setClientFeedback} />;
@@ -486,11 +555,11 @@ const App: React.FC = () => {
   if (route.startsWith('#/revision-form')) return <PublicRevisionForm projects={projects} teamMembers={teamMembers} onUpdateRevision={(pId, rId, data) => setProjects(prev => prev.map(p => p.id === pId ? {...p, revisions: p.revisions?.map(r => r.id === rId ? {...r, ...data, completedDate: new Date().toISOString()} : r)} : p))} />;
   if (route.startsWith('#/portal/')) {
     const accessId = route.split('/portal/')[1];
-    return <ClientPortal accessId={accessId} clients={clients} projects={projects} setClientFeedback={setClientFeedback} showNotification={showNotification} contracts={contracts} transactions={transactions} userProfile={profile} packages={packages} onClientConfirmation={(pId, stage) => setProjects(prev => prev.map(p => p.id === pId ? {...p, [`is${stage.charAt(0).toUpperCase() + stage.slice(1)}ConfirmedByClient`]: true} : p))} onClientSubStatusConfirmation={(pId, sub, note) => setProjects(prev => prev.map(p => p.id === pId ? {...p, confirmedSubStatuses: [...(p.confirmedSubStatuses || []), sub], clientSubStatusNotes: {...(p.clientSubStatusNotes || {}), [sub]: note}} : p))} onSignContract={(cId, sig, signer) => setContracts(prev => prev.map(c => c.id === cId ? {...c, [signer === 'vendor' ? 'vendorSignature' : 'clientSignature']: sig} : c))} />;
+    return <ClientPortal accessId={accessId} clients={clients} projects={projects} setClientFeedback={setClientFeedback} showNotification={showNotification} contracts={contracts} transactions={transactions} userProfile={currentProfile} packages={packages} onClientConfirmation={(pId, stage) => setProjects(prev => prev.map(p => p.id === pId ? {...p, [`is${stage.charAt(0).toUpperCase() + stage.slice(1)}ConfirmedByClient`]: true} : p))} onClientSubStatusConfirmation={(pId, sub, note) => setProjects(prev => prev.map(p => p.id === pId ? {...p, confirmedSubStatuses: [...(p.confirmedSubStatuses || []), sub], clientSubStatusNotes: {...(p.clientSubStatusNotes || {}), [sub]: note}} : p))} onSignContract={(cId, sig, signer) => setContracts(prev => prev.map(c => c.id === cId ? {...c, [signer === 'vendor' ? 'vendorSignature' : 'clientSignature']: sig} : c))} />;
   }
   if (route.startsWith('#/freelancer-portal/')) {
      const accessId = route.split('/freelancer-portal/')[1];
-     return <FreelancerPortal accessId={accessId} teamMembers={teamMembers} projects={projects} teamProjectPayments={teamProjectPayments} teamPaymentRecords={teamPaymentRecords} rewardLedgerEntries={rewardLedgerEntries} showNotification={showNotification} onUpdateRevision={(pId, rId, data) => setProjects(prev => prev.map(p => p.id === pId ? {...p, revisions: p.revisions?.map(r => r.id === rId ? {...r, ...data, completedDate: new Date().toISOString()} : r)} : p))} sops={sops} userProfile={profile} />;
+     return <FreelancerPortal accessId={accessId} teamMembers={teamMembers} projects={projects} teamProjectPayments={teamProjectPayments} teamPaymentRecords={teamPaymentRecords} rewardLedgerEntries={rewardLedgerEntries} showNotification={showNotification} onUpdateRevision={(pId, rId, data) => setProjects(prev => prev.map(p => p.id === pId ? {...p, revisions: p.revisions?.map(r => r.id === rId ? {...r, ...data, completedDate: new Date().toISOString()} : r)} : p))} sops={sops} userProfile={currentProfile} />;
   }
 
   if (!isAuthenticated) return <Login onLoginSuccess={handleLoginSuccess} users={users} />;
@@ -514,7 +583,7 @@ const App: React.FC = () => {
             handleNavigation={handleNavigation}
             handleMarkAllAsRead={handleMarkAllAsRead}
             currentUser={currentUser}
-            profile={profile}
+            profile={currentProfile}
         />
         <main className="flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:p-8 pb-24 xl:pb-8">
             {renderView()}
