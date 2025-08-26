@@ -133,7 +133,7 @@ const App: React.FC = () => {
     setCards, setPockets, setTeamProjectPayments, setTeamPaymentRecords,
     setRewardLedgerEntries, setAssets, setContracts, setClientFeedback,
     setNotifications, setSocialMediaPosts, setPromoCodes, setSops, setPackages, setAddOns
-  } = useSupabaseData();
+  } = useSupabaseData(isAuthenticated);
 
   // Loading state
   if (loading) {

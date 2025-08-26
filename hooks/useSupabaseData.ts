@@ -7,7 +7,7 @@ import type {
   SocialMediaPost, PromoCode, SOP 
 } from '../types';
 
-export const useSupabaseData = () => {
+export const useSupabaseData = (isAuthenticated: boolean = false) => {
   // State for all data
   const [users, setUsers] = useState<User[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -36,6 +36,12 @@ export const useSupabaseData = () => {
 
   // Load all data on mount
   useEffect(() => {
+    // Only load data if user is authenticated
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+
     const loadData = async () => {
       try {
         setLoading(true);
@@ -118,7 +124,7 @@ export const useSupabaseData = () => {
     };
 
     loadData();
-  }, []);
+  }, [isAuthenticated]);
 
   // CRUD operations with optimistic updates
   const createClient = async (client: Client) => {
